@@ -1,10 +1,10 @@
 import { useRive, useStateMachineInput } from '@rive-app/react-canvas';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { GamePhase } from '@crash/shared';
 import { useGameStore } from '../store/game-store.js';
 
 const ROCKET_RIV_SRC = '/rocket.riv';
-const STATE_MACHINE_NAME = 'RocketStateMachine';
+const STATE_MACHINE_NAME = 'State Machine 1';
 
 export interface RocketRiveResult {
   RiveComponent: React.ComponentType<React.HTMLAttributes<HTMLCanvasElement>> | null;
@@ -14,37 +14,36 @@ export interface RocketRiveResult {
 
 export function useRocketRive(): RocketRiveResult {
   const phase = useGameStore((s) => s.phase);
+  const multiplier = useGameStore((s) => s.multiplier);
+  const [hasError, setHasError] = useState(false);
 
   const { rive, RiveComponent } = useRive({
     src: ROCKET_RIV_SRC,
     stateMachines: STATE_MACHINE_NAME,
     autoplay: true,
-    onLoadError: () => {
-      // Gracefully handled — isLoaded remains false
-    },
+    onLoadError: () => setHasError(true),
+    onLoad: () => setHasError(false),
   });
 
-  // Map game phase to a numeric input (0=idle, 1=flying, 2=crashed)
-  const phaseInput = useStateMachineInput(rive, STATE_MACHINE_NAME, 'phase');
+  const fireInput = useStateMachineInput(rive, STATE_MACHINE_NAME, 'fire');
+  const rotationInput = useStateMachineInput(rive, STATE_MACHINE_NAME, 'rotation');
 
   useEffect(() => {
-    if (!phaseInput) return;
-    switch (phase) {
-      case GamePhase.WAITING:
-      case GamePhase.COUNTDOWN:
-        phaseInput.value = 0;
-        break;
-      case GamePhase.FLYING:
-        phaseInput.value = 1;
-        break;
-      case GamePhase.CRASHED:
-        phaseInput.value = 2;
-        break;
-    }
-  }, [phase, phaseInput]);
+    if (!fireInput) return;
+    fireInput.value = phase === GamePhase.FLYING;
+  }, [phase, fireInput]);
 
-  const isLoaded = rive != null;
-  const hasError = !isLoaded;
+  useEffect(() => {
+    if (!rotationInput) return;
+    if (phase === GamePhase.FLYING) {
+      const normalized = Math.min(1, (multiplier - 1) / 9);
+      rotationInput.value = normalized * 45;
+    } else {
+      rotationInput.value = 0;
+    }
+  }, [multiplier, phase, rotationInput]);
+
+  const isLoaded = rive != null && !hasError;
 
   return {
     RiveComponent: isLoaded ? (RiveComponent as React.ComponentType<React.HTMLAttributes<HTMLCanvasElement>>) : null,
