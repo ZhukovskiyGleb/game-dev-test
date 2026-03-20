@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 import { GamePhase, type BotPlayer, type RoundResult, clientMessageSchema, type ServerMessage } from '@crash/shared';
-import { CrashEngine, getMultiplier } from '../engine/crash-engine.js';
+import { CrashEngine } from '../engine/crash-engine.js';
 import { BotManager } from '../engine/bot-manager.js';
 
 const STARTING_BALANCE = 1000;

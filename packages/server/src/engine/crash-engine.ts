@@ -8,8 +8,6 @@ const POST_CRASH_DELAY = 3000;
 const TICK_INTERVAL = 50; // 20Hz
 const GROWTH_RATE = 0.00006;
 
-/** Maximum round duration in ms. The round force-crashes when this elapses. */
-const MAX_ROUND_DURATION = 120_000;
 
 export function getMultiplier(elapsedMs: number): number {
   return Math.pow(Math.E, elapsedMs * GROWTH_RATE);
@@ -25,7 +23,6 @@ export class CrashEngine extends EventEmitter {
   private _phase: GamePhase = GamePhase.WAITING;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
-  private crashTimer: ReturnType<typeof setTimeout> | null = null;
   private roundStartedAt = 0;
   private currentRound: { roundId: string; hash: string; verificationHash: string; crashPoint: number } | null = null;
   private running = false;
@@ -53,10 +50,8 @@ export class CrashEngine extends EventEmitter {
     this.running = false;
     if (this.timer) clearTimeout(this.timer);
     if (this.tickTimer) clearInterval(this.tickTimer);
-    if (this.crashTimer) clearTimeout(this.crashTimer);
     this.timer = null;
     this.tickTimer = null;
-    this.crashTimer = null;
   }
 
   private setPhase(phase: GamePhase): void {
@@ -90,29 +85,22 @@ export class CrashEngine extends EventEmitter {
     this.setPhase(GamePhase.FLYING);
     this.emit('roundStart', { roundId: this.currentRound.roundId, startedAt: this.roundStartedAt });
 
-    // Emit live multiplier ticks at 20 Hz.
+    // Emit live multiplier ticks at 20 Hz. Crash when multiplier exceeds crash point.
     this.tickTimer = setInterval(() => {
       if (!this.running || !this.currentRound) return;
       const elapsed = Date.now() - this.roundStartedAt;
       const multiplier = getMultiplier(elapsed);
-      this.emit('tick', { multiplier, elapsed });
+      if (multiplier >= this.currentRound.crashPoint) {
+        this.crash();
+      } else {
+        this.emit('tick', { multiplier, elapsed });
+      }
     }, TICK_INTERVAL);
-
-    // Schedule the crash. In production the crash fires as soon as the live
-    // multiplier (checked via the tick interval) reaches the crash point. Here
-    // we also set a hard upper bound so the round cannot run indefinitely.
-    const naturalCrashMs = Math.log(this.currentRound.crashPoint) / GROWTH_RATE;
-    const crashDelayMs = Math.max(naturalCrashMs, MAX_ROUND_DURATION);
-    this.crashTimer = setTimeout(() => {
-      if (this.running) this.crash();
-    }, crashDelayMs);
   }
 
   private crash(): void {
     if (this.tickTimer) clearInterval(this.tickTimer);
-    if (this.crashTimer) clearTimeout(this.crashTimer);
     this.tickTimer = null;
-    this.crashTimer = null;
     if (!this.currentRound) return;
     this.setPhase(GamePhase.CRASHED);
     this.emit('crash', {
@@ -121,11 +109,8 @@ export class CrashEngine extends EventEmitter {
       serverSeed: this.currentRound.hash,
       roundId: this.currentRound.roundId,
     });
-    // After the post-crash delay, transition to WAITING and stop.
-    // The caller is responsible for invoking start() to begin the next round.
     this.timer = setTimeout(() => {
-      this.running = false;
-      this.setPhase(GamePhase.WAITING);
+      if (this.running) this.startWaiting();
     }, POST_CRASH_DELAY);
   }
 

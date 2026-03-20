@@ -37,7 +37,7 @@ export const usePlayerStore = create<PlayerState & PlayerActions>((set) => ({
       cashedOutAt: null,
     })),
 
-  cashOut: (winnings, balance, at) =>
+  cashOut: (_winnings, balance, at) =>
     set({
       balance,
       hasActiveBet: false,

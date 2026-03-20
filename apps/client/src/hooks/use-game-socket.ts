@@ -19,9 +19,6 @@ async function fetchHistory(): Promise<RoundResult[]> {
 export function useGameSocket() {
   const wsRef = useRef<WsClient | null>(null);
 
-  const gameStore = useGameStore.getState;
-  const playerStore = usePlayerStore.getState;
-
   useEffect(() => {
     const client = new WsClient(WS_URL);
 

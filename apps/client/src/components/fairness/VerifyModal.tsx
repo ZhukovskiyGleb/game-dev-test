@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { sha256, verifyCrashPoint } from '@crash/shared';
+import { sha256 } from '@crash/shared';
 import { useGameStore } from '../../store/game-store.js';
 
 interface VerifyModalProps {
@@ -35,7 +35,6 @@ export function VerifyModal({ isOpen, onClose }: VerifyModalProps) {
     sha256(serverSeed)
       .then((computed) => {
         setComputedHash(computed);
-        const expectedHash = previousRound?.hash ?? latestRound.hash;
         const isValid = computed === latestRound.hash;
         setStatus(isValid ? 'valid' : 'invalid');
       })

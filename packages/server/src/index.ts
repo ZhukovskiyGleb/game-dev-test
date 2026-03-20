@@ -19,7 +19,7 @@ async function main() {
   app.get('/ws', { websocket: true }, (socket) => {
     gameRoom.addClient(socket);
 
-    socket.on('message', (raw: Buffer | ArrayBuffer | Buffer[]) => {
+    socket.on('message', (raw) => {
       gameRoom.handleMessage(socket, raw.toString());
     });
 
@@ -27,13 +27,14 @@ async function main() {
       gameRoom.removeClient(socket);
     });
 
-    socket.on('error', (err: Error) => {
+    socket.on('error', (err) => {
       app.log.error(err, 'WebSocket error');
       gameRoom.removeClient(socket);
     });
   });
 
   // REST routes
+  app.get('/api/health', async () => ({ status: 'ok' }));
   registerHistoryRoute(app, gameRoom);
   registerVerifyRoute(app, gameRoom);
 

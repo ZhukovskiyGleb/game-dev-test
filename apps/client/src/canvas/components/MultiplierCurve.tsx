@@ -19,7 +19,7 @@ interface MultiplierCurveProps {
 export function MultiplierCurve({ width, height }: MultiplierCurveProps) {
   const graphicsRef = useRef<Graphics | null>(null);
 
-  const draw = useCallback(() => {
+  const tick = useCallback(() => {
     const g = graphicsRef.current;
     if (!g) return;
 
@@ -41,7 +41,6 @@ export function MultiplierCurve({ width, height }: MultiplierCurveProps) {
 
     g.clear();
 
-    // Draw curve line
     const steps = 120;
     const color = isCrashed ? 0xef4444 : 0x22d3ee;
 
@@ -65,22 +64,19 @@ export function MultiplierCurve({ width, height }: MultiplierCurveProps) {
     }
     g.stroke();
 
-    // Draw glow dot at tip
     if (isFlying) {
       g.setFillStyle({ color: 0x22d3ee, alpha: 1 });
       g.circle(lastX, lastY, 6);
       g.fill();
-
-      // Update rocket position for Rive overlay
       setRocketPosition({ x: lastX, y: lastY });
     }
   }, [width, height]);
 
-  useTick(draw);
+  useTick(tick);
 
-  return (
-    <pixiGraphics
-      ref={graphicsRef as React.RefObject<Graphics>}
-    />
-  );
+  const drawCallback = useCallback((g: Graphics) => {
+    graphicsRef.current = g;
+  }, []);
+
+  return <pixiGraphics draw={drawCallback} />;
 }

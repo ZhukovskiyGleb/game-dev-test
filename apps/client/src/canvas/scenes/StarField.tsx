@@ -62,9 +62,9 @@ export function StarField({ width, height }: StarFieldProps) {
 
   useTick(draw);
 
-  return (
-    <pixiGraphics
-      ref={graphicsRef as React.RefObject<Graphics>}
-    />
-  );
+  const drawCallback = useCallback((g: Graphics) => {
+    graphicsRef.current = g;
+  }, []);
+
+  return <pixiGraphics draw={drawCallback} />;
 }

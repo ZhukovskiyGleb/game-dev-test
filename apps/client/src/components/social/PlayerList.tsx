@@ -4,7 +4,7 @@ import { formatCurrency, formatMultiplier } from '../../lib/format.js';
 
 export function PlayerList() {
   const bots = useGameStore((s) => s.bots);
-  const { hasActiveBet, betAmount, cashedOutAt, balance } = usePlayerStore();
+  const { hasActiveBet, betAmount, cashedOutAt } = usePlayerStore();
 
   const hasBots = bots.length > 0;
   const hasPlayer = hasActiveBet || cashedOutAt != null;

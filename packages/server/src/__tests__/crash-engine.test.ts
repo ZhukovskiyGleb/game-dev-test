@@ -50,9 +50,10 @@ describe('CrashEngine', () => {
     const onCrash = vi.fn();
     engine.on('crash', onCrash);
     engine.start();
+    // Advance past waiting + countdown + enough flying time for any crash point
     vi.advanceTimersByTime(5000 + 3000 + 120_000);
+    // Engine auto-loops, so check that crash event was emitted (phase may have moved on)
     expect(onCrash).toHaveBeenCalled();
-    expect(engine.phase).toBe(GamePhase.CRASHED);
   });
 
   it('provides round data including hash and crash point', () => {
@@ -67,11 +68,16 @@ describe('CrashEngine', () => {
     expect(crashData.crashPoint).toBeGreaterThanOrEqual(1.0);
   });
 
-  it('returns to WAITING after crash', () => {
+  it('transitions through CRASHED then back to WAITING', () => {
     const phases: GamePhase[] = [];
     engine.on('phaseChange', (p: GamePhase) => phases.push(p));
     engine.start();
     vi.advanceTimersByTime(5000 + 3000 + 120_000 + 3000);
-    expect(phases[phases.length - 1]).toBe(GamePhase.WAITING);
+    // Engine auto-loops: verify it went through CRASHED and back to WAITING
+    const crashedIndex = phases.indexOf(GamePhase.CRASHED);
+    expect(crashedIndex).toBeGreaterThan(-1);
+    // After CRASHED, there should be a WAITING phase
+    const waitingAfterCrash = phases.slice(crashedIndex + 1).includes(GamePhase.WAITING);
+    expect(waitingAfterCrash).toBe(true);
   });
 });
