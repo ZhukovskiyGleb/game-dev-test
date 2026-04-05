@@ -6,6 +6,17 @@ import { usePlayerStore } from '../store/player-store.js';
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
+const PLAYER_ID_KEY = 'crash_player_id';
+
+function getOrCreatePlayerId(): string {
+  let id = localStorage.getItem(PLAYER_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(PLAYER_ID_KEY, id);
+  }
+  return id;
+}
+
 async function fetchHistory(): Promise<RoundResult[]> {
   try {
     const res = await fetch('/api/history');
@@ -20,7 +31,13 @@ export function useGameSocket() {
   const wsRef = useRef<WsClient | null>(null);
 
   useEffect(() => {
+    const playerId = getOrCreatePlayerId();
     const client = new WsClient(WS_URL);
+
+    const removeOpenHandler = client.onOpen(() => {
+      client.send({ type: 'client:identify', playerId });
+      useGameStore.getState().setConnected(true);
+    });
 
     const removeHandler = client.onMessage((msg) => {
       const game = useGameStore.getState();
@@ -34,7 +51,7 @@ export function useGameSocket() {
           break;
 
         case 'round:countdown':
-          game.setPhase(GamePhase.COUNTDOWN);
+          game.startCountdown(Date.now() + msg.startsIn);
           break;
 
         case 'round:start':
@@ -71,6 +88,7 @@ export function useGameSocket() {
 
         case 'player:bet_accepted':
           player.setBalance(msg.balance);
+          usePlayerStore.setState({ hasActiveBet: true, cashedOutAt: null });
           break;
 
         case 'player:cashout_accepted':
@@ -81,8 +99,12 @@ export function useGameSocket() {
           game.setPhase(msg.phase);
           game.setMultiplier(msg.multiplier);
           game.setBots(msg.bots);
+          player.setBalance(msg.balance);
           if (msg.roundId) {
-            useGameStore.setState({ roundId: msg.roundId });
+            useGameStore.setState({
+              roundId: msg.roundId,
+              roundStartedAt: msg.elapsed > 0 ? Date.now() - msg.elapsed : null,
+            });
           }
           if (msg.playerBet) {
             usePlayerStore.setState({
@@ -102,13 +124,11 @@ export function useGameSocket() {
       }
     });
 
-    // Track connected state
     client.connect();
-    useGameStore.getState().setConnected(true);
-
     wsRef.current = client;
 
     return () => {
+      removeOpenHandler();
       removeHandler();
       client.disconnect();
       useGameStore.getState().setConnected(false);

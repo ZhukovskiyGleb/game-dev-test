@@ -3,6 +3,8 @@ import { usePlayerStore } from '../../store/player-store.js';
 import { formatCurrency } from '../../lib/format.js';
 import { CashoutButton } from './CashoutButton.js';
 
+const MIN_BET = 0.01;
+
 interface BetPanelProps {
   onPlaceBet: (amount: number, autoCashout: number | undefined) => void;
   onCashOut: () => void;
@@ -25,7 +27,7 @@ export function BetPanel({ onPlaceBet, onCashOut }: BetPanelProps) {
 
   function handleBetInput(value: string) {
     const parsed = parseFloat(value);
-    if (!isNaN(parsed) && parsed > 0) {
+    if (!isNaN(parsed) && parsed >= MIN_BET) {
       setBetAmount(parsed);
     }
   }
@@ -37,12 +39,12 @@ export function BetPanel({ onPlaceBet, onCashOut }: BetPanelProps) {
   }
 
   return (
-    <div className="bg-gray-900 rounded-xl p-4 flex flex-col gap-3 border border-gray-800">
+    <div className="flex flex-col gap-3">
       {/* Balance */}
       <div className="flex items-center justify-between text-sm">
         <span className="text-gray-400">Balance</span>
         <span className="text-cyan-400 font-mono font-semibold text-base">
-          {formatCurrency(balance)}
+          {balance === null ? '—' : formatCurrency(balance)}
         </span>
       </div>
 
@@ -51,6 +53,7 @@ export function BetPanel({ onPlaceBet, onCashOut }: BetPanelProps) {
         <label className="text-xs text-gray-400 mb-1 block">Bet Amount</label>
         <input
           type="number"
+          inputMode="decimal"
           min="0.01"
           step="0.01"
           value={betAmount}
@@ -59,7 +62,7 @@ export function BetPanel({ onPlaceBet, onCashOut }: BetPanelProps) {
         />
         <div className="flex gap-2 mt-2">
           <button
-            onClick={() => setBetAmount(Math.max(0.01, betAmount / 2))}
+            onClick={() => setBetAmount(Math.max(MIN_BET, betAmount / 2))}
             className="flex-1 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors font-medium"
           >
             ½
@@ -71,8 +74,9 @@ export function BetPanel({ onPlaceBet, onCashOut }: BetPanelProps) {
             2×
           </button>
           <button
-            onClick={() => setBetAmount(balance)}
-            className="flex-1 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors font-medium"
+            disabled={balance === null || balance <= 0}
+            onClick={() => setBetAmount(Math.max(MIN_BET, balance ?? 0))}
+            className="flex-1 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gray-800"
           >
             Max
           </button>
@@ -86,6 +90,7 @@ export function BetPanel({ onPlaceBet, onCashOut }: BetPanelProps) {
         </label>
         <input
           type="number"
+          inputMode="decimal"
           min="1.01"
           step="0.01"
           placeholder="e.g. 2.00"

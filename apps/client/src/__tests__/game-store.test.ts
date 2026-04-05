@@ -19,7 +19,7 @@ beforeEach(() => {
   });
 
   usePlayerStore.setState({
-    balance: 1000,
+    balance: null,
     betAmount: 10,
     autoCashoutAt: null,
     hasActiveBet: false,
@@ -95,18 +95,12 @@ describe('gameStore', () => {
 });
 
 describe('playerStore', () => {
-  it('starts with $1000 balance', () => {
-    expect(usePlayerStore.getState().balance).toBe(1000);
-  });
-
-  it('deducts bet amount from balance on placeBet', () => {
-    usePlayerStore.getState().placeBet(100);
-    expect(usePlayerStore.getState().balance).toBe(900);
-    expect(usePlayerStore.getState().hasActiveBet).toBe(true);
+  it('starts with null balance before state:sync', () => {
+    expect(usePlayerStore.getState().balance).toBeNull();
   });
 
   it('adds winnings and sets cashedOutAt on cashOut', () => {
-    usePlayerStore.getState().placeBet(100);
+    usePlayerStore.setState({ hasActiveBet: true });
     usePlayerStore.getState().cashOut(250, 1150, 2.5);
     expect(usePlayerStore.getState().balance).toBe(1150);
     expect(usePlayerStore.getState().cashedOutAt).toBe(2.5);

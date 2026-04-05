@@ -11,7 +11,7 @@ export function PlayerList() {
 
   if (!hasBots && !hasPlayer) {
     return (
-      <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
           Players
         </h3>
@@ -23,7 +23,7 @@ export function PlayerList() {
   }
 
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 flex-1 min-h-0 flex flex-col">
+    <div className="flex-1 min-h-0 flex flex-col">
       <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 shrink-0">
         Players ({bots.length + (hasPlayer ? 1 : 0)})
       </h3>

@@ -1,12 +1,11 @@
 import { EventEmitter } from 'events';
-import { GamePhase } from '@crash/shared';
+import { GamePhase, GROWTH_RATE } from '@crash/shared';
 import { ProvablyFairEngine } from './provably-fair.js';
 
 const WAITING_DURATION = 5000;
 const COUNTDOWN_DURATION = 3000;
 const POST_CRASH_DELAY = 3000;
 const TICK_INTERVAL = 50; // 20Hz
-const GROWTH_RATE = 0.00006;
 
 
 export function getMultiplier(elapsedMs: number): number {
@@ -20,6 +19,7 @@ interface CrashEngineOptions {
 
 export class CrashEngine extends EventEmitter {
   private fairEngine: ProvablyFairEngine;
+  private chainLength: number;
   private _phase: GamePhase = GamePhase.WAITING;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -29,7 +29,8 @@ export class CrashEngine extends EventEmitter {
 
   constructor(options: CrashEngineOptions = {}) {
     super();
-    this.fairEngine = new ProvablyFairEngine(options.chainLength ?? 10000, options.seed);
+    this.chainLength = options.chainLength ?? 10000;
+    this.fairEngine = new ProvablyFairEngine(this.chainLength, options.seed);
   }
 
   get phase(): GamePhase { return this._phase; }
@@ -60,6 +61,9 @@ export class CrashEngine extends EventEmitter {
   }
 
   private startWaiting(): void {
+    if (this.fairEngine.getRoundsRemaining() === 0) {
+      this.fairEngine = new ProvablyFairEngine(this.chainLength);
+    }
     this.currentRound = this.fairEngine.getNextRound();
     this.setPhase(GamePhase.WAITING);
     this.emit('roundWaiting', {
@@ -105,8 +109,8 @@ export class CrashEngine extends EventEmitter {
     this.setPhase(GamePhase.CRASHED);
     this.emit('crash', {
       crashPoint: this.currentRound.crashPoint,
-      hash: this.currentRound.hash,
       serverSeed: this.currentRound.hash,
+      hash: this.currentRound.verificationHash,
       roundId: this.currentRound.roundId,
     });
     this.timer = setTimeout(() => {

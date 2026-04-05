@@ -5,6 +5,7 @@ import { BotManager } from '../engine/bot-manager.js';
 
 const STARTING_BALANCE = 1000;
 const MAX_HISTORY = 50;
+const MAX_PLAYERS = 10_000;
 
 interface PlayerBet {
   amount: number;
@@ -15,8 +16,10 @@ export class GameRoom {
   private engine: CrashEngine;
   private botManager: BotManager;
   private clients = new Set<WebSocket>();
-  private balances = new Map<WebSocket, number>();
-  private playerBets = new Map<WebSocket, PlayerBet>();
+  private clientIds = new Map<WebSocket, string>();
+  private clientSockets = new Map<string, WebSocket>();
+  private playerBalances = new Map<string, number>();
+  private playerBets = new Map<string, PlayerBet>();
   private roundHistory: RoundResult[] = [];
   private currentBots: BotPlayer[] = [];
   private currentMultiplier = 1.0;
@@ -30,12 +33,10 @@ export class GameRoom {
 
   private wireEngineEvents(): void {
     this.engine.on('roundWaiting', ({ roundId, nextHash }: { roundId: string; nextHash: string }) => {
-      // Clear all player bets on new round
       this.playerBets.clear();
       this.currentMultiplier = 1.0;
       this.currentElapsed = 0;
 
-      // Generate bots for the new round
       this.currentBots = this.botManager.generateBots();
 
       this.broadcast({ type: 'round:waiting', roundId, nextHash });
@@ -56,13 +57,11 @@ export class GameRoom {
 
       this.broadcast({ type: 'round:tick', multiplier, elapsed });
 
-      // Process bot cashouts
       const newCashouts = this.botManager.processCashouts(multiplier);
       for (const bot of newCashouts) {
         this.broadcast({ type: 'bot:cashout', botId: bot.id, at: bot.cashedOutAt! });
       }
 
-      // Process player auto-cashouts
       this.processAutoCashouts(multiplier);
     });
 
@@ -74,7 +73,6 @@ export class GameRoom {
     }) => {
       this.broadcast({ type: 'round:crash', crashPoint, serverSeed, hash });
 
-      // Add to history
       const result: RoundResult = {
         roundId,
         crashPoint,
@@ -83,31 +81,49 @@ export class GameRoom {
       };
       this.roundHistory.unshift(result);
       if (this.roundHistory.length > MAX_HISTORY) {
-        this.roundHistory = this.roundHistory.slice(0, MAX_HISTORY);
+        this.roundHistory.pop();
       }
 
-      // Clear all remaining player bets (players who didn't cash out lost)
       this.playerBets.clear();
     });
   }
 
   private processAutoCashouts(multiplier: number): void {
-    for (const [client, bet] of this.playerBets.entries()) {
+    for (const [playerId, bet] of this.playerBets.entries()) {
       if (bet.autoCashoutAt !== null && multiplier >= bet.autoCashoutAt) {
-        this.executeCashout(client, multiplier);
+        this.executeCashout(playerId, multiplier);
       }
     }
   }
 
-  private executeCashout(client: WebSocket, multiplier: number): void {
-    const bet = this.playerBets.get(client);
+  private getBalance(ws: WebSocket): number {
+    const playerId = this.clientIds.get(ws);
+    if (playerId) return this.playerBalances.get(playerId) ?? STARTING_BALANCE;
+    return STARTING_BALANCE;
+  }
+
+  private setBalance(ws: WebSocket, balance: number): void {
+    const playerId = this.clientIds.get(ws);
+    if (!playerId) return;
+    if (this.playerBalances.has(playerId)) {
+      this.playerBalances.delete(playerId);
+    } else if (this.playerBalances.size >= MAX_PLAYERS) {
+      this.playerBalances.delete(this.playerBalances.keys().next().value!);
+    }
+    this.playerBalances.set(playerId, balance);
+  }
+
+  private executeCashout(playerId: string, multiplier: number): void {
+    const bet = this.playerBets.get(playerId);
     if (!bet) return;
 
+    const ws = this.clientSockets.get(playerId);
+    if (!ws) return;
+
     const winnings = bet.amount * multiplier;
-    const currentBalance = this.balances.get(client) ?? STARTING_BALANCE;
-    const newBalance = currentBalance + winnings;
-    this.balances.set(client, newBalance);
-    this.playerBets.delete(client);
+    const newBalance = this.getBalance(ws) + winnings;
+    this.setBalance(ws, newBalance);
+    this.playerBets.delete(playerId);
 
     const msg: ServerMessage = {
       type: 'player:cashout_accepted',
@@ -116,16 +132,18 @@ export class GameRoom {
       at: multiplier,
     };
 
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(msg));
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(msg));
     }
   }
 
   addClient(ws: WebSocket): void {
     this.clients.add(ws);
-    this.balances.set(ws, STARTING_BALANCE);
+  }
 
-    // Send state sync
+  private sendStateSync(ws: WebSocket): void {
+    const playerId = this.clientIds.get(ws);
+    const bet = playerId ? this.playerBets.get(playerId) : undefined;
     const syncMsg: ServerMessage = {
       type: 'state:sync',
       phase: this.engine.phase,
@@ -133,23 +151,19 @@ export class GameRoom {
       multiplier: this.currentMultiplier,
       elapsed: this.currentElapsed,
       bots: this.currentBots,
-      playerBet: this.playerBets.get(ws)
-        ? {
-            amount: this.playerBets.get(ws)!.amount,
-            autoCashoutAt: this.playerBets.get(ws)!.autoCashoutAt,
-          }
-        : null,
+      balance: this.getBalance(ws),
+      playerBet: bet ? { amount: bet.amount, autoCashoutAt: bet.autoCashoutAt } : null,
     };
-
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(syncMsg));
     }
   }
 
   removeClient(ws: WebSocket): void {
+    const playerId = this.clientIds.get(ws);
+    if (playerId) this.clientSockets.delete(playerId);
     this.clients.delete(ws);
-    this.balances.delete(ws);
-    this.playerBets.delete(ws);
+    this.clientIds.delete(ws);
   }
 
   handleMessage(ws: WebSocket, raw: string): void {
@@ -169,26 +183,46 @@ export class GameRoom {
 
     const msg = result.data;
 
+    if (msg.type === 'client:identify') {
+      this.clientIds.set(ws, msg.playerId);
+      this.clientSockets.set(msg.playerId, ws);
+      if (!this.playerBalances.has(msg.playerId)) {
+        if (this.playerBalances.size >= MAX_PLAYERS) {
+          this.playerBalances.delete(this.playerBalances.keys().next().value!);
+        }
+        this.playerBalances.set(msg.playerId, STARTING_BALANCE);
+      }
+      this.sendStateSync(ws);
+      return;
+    }
+
+    if (!this.clientIds.has(ws)) {
+      this.sendError(ws, 'NOT_IDENTIFIED', 'Send client:identify first');
+      return;
+    }
+
+    const playerId = this.clientIds.get(ws)!;
+
     if (msg.type === 'bet:place') {
       if (this.engine.phase !== GamePhase.WAITING) {
         this.sendError(ws, 'INVALID_PHASE', 'Bets only accepted during waiting phase');
         return;
       }
 
-      if (this.playerBets.has(ws)) {
+      if (this.playerBets.has(playerId)) {
         this.sendError(ws, 'BET_EXISTS', 'You already have an active bet');
         return;
       }
 
-      const balance = this.balances.get(ws) ?? STARTING_BALANCE;
+      const balance = this.getBalance(ws);
       if (msg.amount > balance) {
         this.sendError(ws, 'INSUFFICIENT_BALANCE', 'Insufficient balance');
         return;
       }
 
       const newBalance = balance - msg.amount;
-      this.balances.set(ws, newBalance);
-      this.playerBets.set(ws, {
+      this.setBalance(ws, newBalance);
+      this.playerBets.set(playerId, {
         amount: msg.amount,
         autoCashoutAt: msg.autoCashoutAt ?? null,
       });
@@ -207,14 +241,13 @@ export class GameRoom {
         return;
       }
 
-      if (!this.playerBets.has(ws)) {
+      if (!this.playerBets.has(playerId)) {
         this.sendError(ws, 'NO_BET', 'No active bet to cash out');
         return;
       }
 
-      // Server determines multiplier at processing time
       const multiplier = this.engine.getCurrentMultiplier();
-      this.executeCashout(ws, multiplier);
+      this.executeCashout(playerId, multiplier);
     }
   }
 

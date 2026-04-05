@@ -1,17 +1,15 @@
-import { extend, useTick } from '@pixi/react';
-import { Graphics } from 'pixi.js';
-import { useCallback, useRef } from 'react';
+import { extend, useApplication, useTick } from '@pixi/react';
+import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { useEffect, useRef } from 'react';
 import { GamePhase } from '@crash/shared';
 import { useGameStore } from '../../store/game-store.js';
+import { liveMultiplier } from '../../lib/live-multiplier.js';
 
-extend({ Graphics });
+extend({ Container });
 
 interface Star {
-  x: number;
-  y: number;
-  size: number;
   speed: number;
-  alpha: number;
+  sprite: Sprite;
 }
 
 interface StarFieldProps {
@@ -19,52 +17,58 @@ interface StarFieldProps {
   height: number;
 }
 
-function createStars(width: number, height: number, count = 150): Star[] {
-  return Array.from({ length: count }, () => ({
-    x: Math.random() * width,
-    y: Math.random() * height,
-    size: Math.random() * 2 + 0.5,
-    speed: Math.random() * 0.8 + 0.2,
-    alpha: Math.random() * 0.7 + 0.3,
-  }));
-}
-
 export function StarField({ width, height }: StarFieldProps) {
-  const graphicsRef = useRef<Graphics | null>(null);
-  const starsRef = useRef<Star[]>(createStars(width, height));
+  const { app } = useApplication();
+  const containerRef = useRef<Container | null>(null);
+  const starsRef = useRef<Star[]>([]);
+  const textureRef = useRef<Texture | null>(null);
 
-  const draw = useCallback(() => {
-    const g = graphicsRef.current;
-    if (!g) return;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !app?.renderer) return;
 
+    const g = new Graphics();
+    g.circle(0, 0, 1);
+    g.fill({ color: 0xffffff });
+    const texture = app.renderer.generateTexture(g);
+    g.destroy();
+    textureRef.current = texture;
+
+    const stars: Star[] = Array.from({ length: 150 }, () => {
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(0.5);
+      sprite.x = Math.random() * width;
+      sprite.y = Math.random() * height;
+      const size = Math.random() * 2 + 0.5;
+      sprite.scale.set(size);
+      sprite.alpha = Math.random() * 0.7 + 0.3;
+      container.addChild(sprite);
+      return { speed: Math.random() * 0.8 + 0.2, sprite };
+    });
+    starsRef.current = stars;
+
+    return () => {
+      for (const star of stars) star.sprite.destroy();
+      texture.destroy();
+      textureRef.current = null;
+      starsRef.current = [];
+    };
+  }, [app, width, height]);
+
+  useTick(() => {
     const { phase } = useGameStore.getState();
-    const isFlying = phase === GamePhase.FLYING;
+    if (phase !== GamePhase.FLYING) return;
 
-    // Scroll stars during flying
-    if (isFlying) {
-      for (const star of starsRef.current) {
-        star.y += star.speed;
-        if (star.y > height) {
-          star.y = 0;
-          star.x = Math.random() * width;
-        }
-      }
-    }
-
-    g.clear();
+    const speedFactor = Math.min(5, Math.sqrt(liveMultiplier.current));
 
     for (const star of starsRef.current) {
-      g.setFillStyle({ color: 0xffffff, alpha: star.alpha });
-      g.circle(star.x, star.y, star.size);
-      g.fill();
+      star.sprite.y += star.speed * speedFactor;
+      if (star.sprite.y > height) {
+        star.sprite.y = 0;
+        star.sprite.x = Math.random() * width;
+      }
     }
-  }, [width, height]);
+  });
 
-  useTick(draw);
-
-  const drawCallback = useCallback((g: Graphics) => {
-    graphicsRef.current = g;
-  }, []);
-
-  return <pixiGraphics draw={drawCallback} />;
+  return <pixiContainer ref={containerRef} />;
 }

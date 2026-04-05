@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+@keyframes screen-shake {
+  0%   { transform: translate(0,     0); }
+  15%  { transform: translate(-7px, -3px); }
+  30%  { transform: translate( 6px,  3px); }
+  45%  { transform: translate(-5px,  2px); }
+  60%  { transform: translate( 4px, -2px); }
+  75%  { transform: translate(-2px,  1px); }
+  90%  { transform: translate( 1px, -1px); }
+  100% { transform: translate(0,     0); }
+}
+
+.screen-shake {
+  animation: screen-shake 0.45s ease-out;
+}

@@ -1,12 +1,14 @@
 import { serverMessageSchema, type ServerMessage } from '@crash/shared';
 
 type MessageHandler = (msg: ServerMessage) => void;
+type OpenHandler = () => void;
 
 const RECONNECT_DELAY_MS = 2000;
 
 export class WsClient {
   private ws: WebSocket | null = null;
   private handlers: MessageHandler[] = [];
+  private openHandlers: OpenHandler[] = [];
   private url: string;
   private shouldReconnect = false;
 
@@ -22,6 +24,11 @@ export class WsClient {
   private openConnection(): void {
     const ws = new WebSocket(this.url);
     this.ws = ws;
+
+    ws.addEventListener('open', () => {
+      if (!this.shouldReconnect) return;
+      for (const handler of this.openHandlers) handler();
+    });
 
     ws.addEventListener('message', (event: MessageEvent) => {
       let raw: unknown;
@@ -53,8 +60,8 @@ export class WsClient {
       }
     });
 
-    ws.addEventListener('error', (err) => {
-      console.error('[WsClient] WebSocket error', err);
+    ws.addEventListener('error', () => {
+      console.warn('[WsClient] WebSocket error — reconnecting in', RECONNECT_DELAY_MS, 'ms');
     });
   }
 
@@ -70,6 +77,13 @@ export class WsClient {
     this.handlers.push(handler);
     return () => {
       this.handlers = this.handlers.filter((h) => h !== handler);
+    };
+  }
+
+  onOpen(handler: OpenHandler): () => void {
+    this.openHandlers.push(handler);
+    return () => {
+      this.openHandlers = this.openHandlers.filter((h) => h !== handler);
     };
   }
 

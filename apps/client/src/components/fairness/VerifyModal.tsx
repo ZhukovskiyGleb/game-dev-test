@@ -16,7 +16,6 @@ export function VerifyModal({ isOpen, onClose }: VerifyModalProps) {
 
   // Find the next round's hash from history (for verification)
   const latestRound = roundHistory[0];
-  const previousRound = roundHistory[1];
 
   useEffect(() => {
     if (!isOpen) {
@@ -39,7 +38,7 @@ export function VerifyModal({ isOpen, onClose }: VerifyModalProps) {
         setStatus(isValid ? 'valid' : 'invalid');
       })
       .catch(() => setStatus('invalid'));
-  }, [isOpen, serverSeed, latestRound, previousRound]);
+  }, [isOpen, serverSeed, latestRound]);
 
   if (!isOpen) return null;
 

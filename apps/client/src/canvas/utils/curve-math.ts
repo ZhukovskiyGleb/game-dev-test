@@ -1,4 +1,4 @@
-const GROWTH_RATE = 0.00006;
+import { GROWTH_RATE } from '@crash/shared';
 
 export function getMultiplierAtTime(elapsedMs: number): number {
   return Math.pow(Math.E, elapsedMs * GROWTH_RATE);

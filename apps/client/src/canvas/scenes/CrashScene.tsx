@@ -2,6 +2,8 @@ import { extend } from '@pixi/react';
 import { Container } from 'pixi.js';
 import { StarField } from './StarField.js';
 import { MultiplierCurve } from '../components/MultiplierCurve.js';
+import { RocketTrail } from '../components/RocketTrail.js';
+import { ExplosionEffect } from '../components/ExplosionEffect.js';
 
 extend({ Container });
 
@@ -15,6 +17,8 @@ export function CrashScene({ width, height }: CrashSceneProps) {
     <pixiContainer>
       <StarField width={width} height={height} />
       <MultiplierCurve width={width} height={height} />
+      <RocketTrail />
+      <ExplosionEffect />
     </pixiContainer>
   );
 }

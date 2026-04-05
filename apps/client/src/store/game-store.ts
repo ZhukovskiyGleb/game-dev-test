@@ -8,6 +8,7 @@ interface GameState {
   crashPoint: number | null;
   serverSeed: string | null;
   roundStartedAt: number | null;
+  countdownEndsAt: number | null;
   bots: BotPlayer[];
   roundHistory: RoundResult[];
   connected: boolean;
@@ -22,6 +23,7 @@ interface GameActions {
   updateBotCashout: (botId: string, at: number) => void;
   addRoundToHistory: (round: RoundResult) => void;
   startRound: (roundId: string, startedAt: number) => void;
+  startCountdown: (endsAt: number) => void;
   setConnected: (connected: boolean) => void;
   setRocketPosition: (position: { x: number; y: number }) => void;
   resetRound: () => void;
@@ -37,6 +39,7 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
   crashPoint: null,
   serverSeed: null,
   roundStartedAt: null,
+  countdownEndsAt: null,
   bots: [],
   roundHistory: [],
   connected: false,
@@ -72,9 +75,20 @@ export const useGameStore = create<GameState & GameActions>((set) => ({
       serverSeed: null,
     }),
 
+  startCountdown: (endsAt) => set({ phase: GamePhase.COUNTDOWN, countdownEndsAt: endsAt }),
+
   setConnected: (connected) => set({ connected }),
 
-  setRocketPosition: (rocketPosition) => set({ rocketPosition }),
+  setRocketPosition: (rocketPosition) =>
+    set((state) => {
+      if (
+        state.rocketPosition.x === rocketPosition.x &&
+        state.rocketPosition.y === rocketPosition.y
+      ) {
+        return state;
+      }
+      return { rocketPosition };
+    }),
 
   resetRound: () =>
     set({

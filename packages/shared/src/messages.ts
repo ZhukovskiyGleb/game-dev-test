@@ -70,6 +70,7 @@ export const stateSyncSchema = z.object({
   multiplier: z.number(),
   elapsed: z.number(),
   bots: z.array(botPlayerSchema),
+  balance: z.number(),
   playerBet: z.object({
     amount: z.number(),
     autoCashoutAt: z.number().nullable(),
@@ -100,6 +101,11 @@ export type ServerMessage = z.infer<typeof serverMessageSchema>;
 
 // --- Client → Server ---
 
+export const clientIdentifySchema = z.object({
+  type: z.literal('client:identify'),
+  playerId: z.string().uuid(),
+});
+
 export const betPlaceSchema = z.object({
   type: z.literal('bet:place'),
   amount: z.number().positive(),
@@ -111,6 +117,7 @@ export const betCashoutSchema = z.object({
 });
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
+  clientIdentifySchema,
   betPlaceSchema,
   betCashoutSchema,
 ]);

@@ -1,3 +1,5 @@
+export const GROWTH_RATE = 0.00006;
+
 export enum GamePhase {
   WAITING = 'waiting',
   COUNTDOWN = 'countdown',

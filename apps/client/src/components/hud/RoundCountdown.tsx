@@ -4,27 +4,24 @@ import { useGameStore } from '../../store/game-store.js';
 
 export function RoundCountdown() {
   const phase = useGameStore((s) => s.phase);
-  const [count, setCount] = useState(3);
+  const countdownEndsAt = useGameStore((s) => s.countdownEndsAt);
+  const [remaining, setRemaining] = useState(3);
 
   useEffect(() => {
-    if (phase !== GamePhase.COUNTDOWN) {
-      setCount(3);
+    if (phase !== GamePhase.COUNTDOWN || countdownEndsAt === null) {
+      setRemaining(3);
       return;
     }
 
-    setCount(3);
-    const interval = setInterval(() => {
-      setCount((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const tick = () => {
+      const secs = Math.ceil((countdownEndsAt - Date.now()) / 1000);
+      setRemaining(Math.max(0, secs));
+    };
 
+    tick();
+    const interval = setInterval(tick, 100);
     return () => clearInterval(interval);
-  }, [phase]);
+  }, [phase, countdownEndsAt]);
 
   if (phase === GamePhase.WAITING) {
     return (
@@ -40,7 +37,7 @@ export function RoundCountdown() {
     return (
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
         <span className="text-cyan-400 text-8xl font-black animate-ping-once">
-          {count > 0 ? count : 'GO!'}
+          {remaining > 0 ? remaining : 'GO!'}
         </span>
       </div>
     );

@@ -1,6 +1,6 @@
-import { Application, extend } from '@pixi/react';
+import { Application, extend, useApplication } from '@pixi/react';
 import { Container, Graphics } from 'pixi.js';
-import { useRef, useEffect } from 'react';
+import { useEffect } from 'react';
 import { CrashScene } from './scenes/CrashScene.js';
 
 extend({ Container, Graphics });
@@ -10,29 +10,29 @@ interface GameCanvasProps {
   height: number;
 }
 
-export function GameCanvas({ width, height }: GameCanvasProps) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
+function CanvasResizer({ width, height }: GameCanvasProps) {
+  const { app } = useApplication();
 
-  // Force the canvas element to match container size after mount
   useEffect(() => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-    const canvas = wrapper.querySelector('canvas');
-    if (canvas) {
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+    if (app?.renderer && width > 0 && height > 0) {
+      app.renderer.resize(width, height);
     }
-  }, [width, height]);
+  }, [app, width, height]);
 
+  return null;
+}
+
+export function GameCanvas({ width, height }: GameCanvasProps) {
   return (
-    <div ref={wrapperRef} style={{ position: 'absolute', inset: 0 }}>
+    <div style={{ position: 'absolute', inset: 0 }}>
       <Application
         width={width}
         height={height}
         backgroundColor={0x030712}
-        antialias
+        antialias={false}
         resolution={1}
       >
+        <CanvasResizer width={width} height={height} />
         <CrashScene width={width} height={height} />
       </Application>
     </div>
